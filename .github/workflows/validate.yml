@@ -1,0 +1,71 @@
+name: Validate Terraform Modules
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate-modules:
+    name: Validate ${{ matrix.module }} module
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - vnet
+          - acr
+          - aks
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Terraform fmt check
+        working-directory: modules/${{ matrix.module }}
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        working-directory: modules/${{ matrix.module }}
+        run: terraform init -backend=false
+
+      - name: Terraform validate
+        working-directory: modules/${{ matrix.module }}
+        run: terraform validate
+
+  validate-complete-example:
+    name: Validate complete example
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Terraform fmt check
+        working-directory: examples/complete
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        working-directory: examples/complete
+        run: terraform init -backend=false
+
+      - name: Terraform validate
+        working-directory: examples/complete
+        run: terraform validate

@@ -1,0 +1,6 @@
+resource_group_name = "rg-terraform-modules-example"
+location            = "East US"
+name_prefix         = "kylonmods"
+environment         = "dev"
+acr_sku             = "Standard"
+node_vm_size        = "Standard_D2s_v3"

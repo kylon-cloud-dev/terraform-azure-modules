@@ -1,9 +1,7 @@
 name: Publish Terraform Module Version
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  workflow_dispatch:
 
 permissions:
   id-token: write

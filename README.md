@@ -32,3 +32,32 @@ terraform-azure-modules/
 │       └── publish.yml
 ├── README.md
 └── troubleshooting.md
+
+
+## HCP Terraform Private Registry
+
+The VNet, ACR, and AKS modules were published to the HCP Terraform private registry using tag-based publishing.
+
+| Module | Provider | Version | Source Directory |
+|---|---|---|---|
+| vnet | azurerm | 1.0.0 | modules/vnet |
+| acr | azurerm | 1.0.0 | modules/acr |
+| aks | azurerm | 1.0.0 | modules/aks |
+
+### Registry Screenshots
+
+#### GitHub Actions Validation
+
+![GitHub Actions validation success](screenshots/github-actions-validation-success.png)
+
+#### VNet Module Published
+
+![HCP Terraform VNet module published](screenshots/hcp-terraform-vnet-module-published.png)
+
+#### ACR Module Published
+
+![HCP Terraform ACR module published](screenshots/hcp-terraform-acr-module-published.png)
+
+#### AKS Module Published
+
+![HCP Terraform AKS module published](screenshots/hcp-terraform-aks-module-published.png)

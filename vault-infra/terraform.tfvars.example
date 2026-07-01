@@ -1,0 +1,7 @@
+vault_address          = "https://your-vault-address:8200"
+github_org             = "kylon-cloud-dev"
+github_repo            = "terraform-azure-modules"
+azure_subscription_id  = "your-azure-subscription-id"
+azure_tenant_id        = "your-azure-tenant-id"
+vault_sp_client_id     = "your-vault-service-principal-client-id"
+vault_sp_client_secret = "your-vault-service-principal-client-secret"

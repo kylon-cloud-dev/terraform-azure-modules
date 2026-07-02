@@ -21,11 +21,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          ENCODED_AUDIENCE=$(python3 - <<'PY'
-import urllib.parse
-print(urllib.parse.quote("https://vault.hashicorp.com", safe=""))
-PY
-)
+          ENCODED_AUDIENCE=$(python3 -c 'import urllib.parse; print(urllib.parse.quote("https://vault.hashicorp.com", safe=""))')
 
           OIDC_RESPONSE=$(curl -sS \
             --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \

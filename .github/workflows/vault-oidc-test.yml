@@ -65,7 +65,7 @@ jobs:
 
           rm "$LOGIN_FILE"
 
-      - name: Request dynamic Azure credentials from Vault
+      - name: Request dynamic Azure credentials from Vault with retry
         shell: bash
         env:
           VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
@@ -74,19 +74,36 @@ jobs:
           set -euo pipefail
 
           CREDS_FILE=$(mktemp)
+          SUCCESS="false"
 
-          HTTP_STATUS=$(curl -sS \
-            --output "$CREDS_FILE" \
-            --write-out "%{http_code}" \
-            --header "X-Vault-Token: ${VAULT_CLIENT_TOKEN}" \
-            --header "X-Vault-Namespace: ${VAULT_NAMESPACE}" \
-            "${VAULT_ADDR}/v1/azure/creds/github-actions-role")
+          for attempt in 1 2 3 4 5 6; do
+            echo "Attempt ${attempt}: requesting dynamic Azure credentials from Vault"
 
-          echo "Vault Azure creds HTTP status: $HTTP_STATUS"
+            HTTP_STATUS=$(curl -sS \
+              --output "$CREDS_FILE" \
+              --write-out "%{http_code}" \
+              --header "X-Vault-Token: ${VAULT_CLIENT_TOKEN}" \
+              --header "X-Vault-Namespace: ${VAULT_NAMESPACE}" \
+              "${VAULT_ADDR}/v1/azure/creds/github-actions-role")
 
-          if jq -e '.errors' "$CREDS_FILE" >/dev/null; then
-            echo "Vault Azure credential errors:"
-            jq -r '.errors[]' "$CREDS_FILE"
+            echo "Vault Azure creds HTTP status: $HTTP_STATUS"
+
+            if [ "$HTTP_STATUS" = "200" ] && ! jq -e '.errors' "$CREDS_FILE" >/dev/null; then
+              SUCCESS="true"
+              break
+            fi
+
+            echo "Vault Azure credential request did not succeed yet."
+            if jq -e '.errors' "$CREDS_FILE" >/dev/null 2>&1; then
+              jq -r '.errors[]' "$CREDS_FILE"
+            fi
+
+            echo "Waiting 60 seconds before retry..."
+            sleep 60
+          done
+
+          if [ "$SUCCESS" != "true" ]; then
+            echo "Vault Azure credential request failed after retries."
             exit 1
           fi
 

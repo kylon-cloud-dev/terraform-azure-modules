@@ -423,9 +423,3 @@ Example local cleanup:
     unset VAULT_NAMESPACE
     unset VAULT_SP_CLIENT_SECRET
     unset SP_JSON
-
----
-
-## Interview Talking Point
-
-I built a reusable Terraform module library for Azure infrastructure and published the modules to the HCP Terraform private registry. I also configured HashiCorp Vault with GitHub Actions OIDC so a workflow could authenticate to Vault without storing Azure credentials directly in GitHub secrets. Vault issued short-lived Azure credentials at runtime, and I documented the troubleshooting, validation, and cleanup process end to end.

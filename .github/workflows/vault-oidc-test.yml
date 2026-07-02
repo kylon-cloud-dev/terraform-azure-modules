@@ -1,0 +1,139 @@
+name: Vault OIDC Dynamic Azure Credential Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  test-vault-oidc:
+    name: Test GitHub OIDC to Vault
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Request GitHub OIDC token
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ENCODED_AUDIENCE=$(python3 - <<'PY'
+import urllib.parse
+print(urllib.parse.quote("https://vault.hashicorp.com", safe=""))
+PY
+)
+
+          OIDC_RESPONSE=$(curl -sS \
+            --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${ENCODED_AUDIENCE}")
+
+          GITHUB_OIDC_TOKEN=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<< "$OIDC_RESPONSE")
+
+          echo "::add-mask::$GITHUB_OIDC_TOKEN"
+          echo "GITHUB_OIDC_TOKEN=$GITHUB_OIDC_TOKEN" >> "$GITHUB_ENV"
+
+      - name: Authenticate to Vault with GitHub OIDC
+        shell: bash
+        env:
+          VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
+          VAULT_NAMESPACE: ${{ secrets.VAULT_NAMESPACE }}
+        run: |
+          set -euo pipefail
+
+          LOGIN_FILE=$(mktemp)
+
+          HTTP_STATUS=$(curl -sS \
+            --output "$LOGIN_FILE" \
+            --write-out "%{http_code}" \
+            --request POST \
+            --header "X-Vault-Namespace: ${VAULT_NAMESPACE}" \
+            --header "Content-Type: application/json" \
+            --data "{\"role\":\"github-actions-azure\",\"jwt\":\"${GITHUB_OIDC_TOKEN}\"}" \
+            "${VAULT_ADDR}/v1/auth/jwt/login")
+
+          echo "Vault login HTTP status: $HTTP_STATUS"
+
+          python3 - "$LOGIN_FILE" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1]))
+
+if "errors" in payload:
+    print("Vault login errors:")
+    for error in payload["errors"]:
+        print(f"- {error}")
+    sys.exit(1)
+
+token = payload["auth"]["client_token"]
+print(f"Vault client token issued, length={len(token)}")
+PY
+
+          VAULT_CLIENT_TOKEN=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["auth"]["client_token"])' "$LOGIN_FILE")
+
+          echo "::add-mask::$VAULT_CLIENT_TOKEN"
+          echo "VAULT_CLIENT_TOKEN=$VAULT_CLIENT_TOKEN" >> "$GITHUB_ENV"
+
+          rm "$LOGIN_FILE"
+
+      - name: Request dynamic Azure credentials from Vault
+        shell: bash
+        env:
+          VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
+          VAULT_NAMESPACE: ${{ secrets.VAULT_NAMESPACE }}
+        run: |
+          set -euo pipefail
+
+          CREDS_FILE=$(mktemp)
+
+          HTTP_STATUS=$(curl -sS \
+            --output "$CREDS_FILE" \
+            --write-out "%{http_code}" \
+            --header "X-Vault-Token: ${VAULT_CLIENT_TOKEN}" \
+            --header "X-Vault-Namespace: ${VAULT_NAMESPACE}" \
+            "${VAULT_ADDR}/v1/azure/creds/github-actions-role")
+
+          echo "Vault Azure creds HTTP status: $HTTP_STATUS"
+
+          python3 - "$CREDS_FILE" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1]))
+
+if "errors" in payload:
+    print("Vault Azure credential errors:")
+    for error in payload["errors"]:
+        print(f"- {error}")
+    sys.exit(1)
+
+lease_id = payload.get("lease_id", "")
+lease_duration = payload.get("lease_duration", "")
+data = payload.get("data", {})
+
+print("Dynamic Azure credentials issued successfully.")
+print(f"lease_id: set, length={len(lease_id)}")
+print(f"lease_duration: {lease_duration}")
+
+for key, value in data.items():
+    print(f"{key}: set, length={len(str(value))}")
+PY
+
+          LEASE_ID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("lease_id", ""))' "$CREDS_FILE")
+
+          if [ -n "$LEASE_ID" ]; then
+            curl -sS \
+              --request PUT \
+              --header "X-Vault-Token: ${VAULT_CLIENT_TOKEN}" \
+              --header "X-Vault-Namespace: ${VAULT_NAMESPACE}" \
+              --data "{\"lease_id\":\"${LEASE_ID}\"}" \
+              "${VAULT_ADDR}/v1/sys/leases/revoke" >/dev/null
+
+            echo "Dynamic Azure credential lease revoked."
+          fi
+
+          rm "$CREDS_FILE"

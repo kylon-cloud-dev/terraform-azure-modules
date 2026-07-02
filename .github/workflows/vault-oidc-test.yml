@@ -84,9 +84,9 @@ jobs:
               --write-out "%{http_code}" \
               --header "X-Vault-Token: ${VAULT_CLIENT_TOKEN}" \
               --header "X-Vault-Namespace: ${VAULT_NAMESPACE}" \
-              "${VAULT_ADDR}/v1/azure/creds/github-actions-role")
+              "${VAULT_ADDR}/v1/azure/creds/github-actions-existing-sp")
 
-            echo "Vault Azure creds HTTP status: $HTTP_STATUS"
+            echo "Vault Azure existing-SP creds HTTP status: $HTTP_STATUS"
 
             if [ "$HTTP_STATUS" = "200" ] && ! jq -e '.errors' "$CREDS_FILE" >/dev/null; then
               SUCCESS="true"
